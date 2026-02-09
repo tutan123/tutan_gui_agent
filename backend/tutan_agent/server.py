@@ -93,9 +93,25 @@ async def run_task(serial: str, task: str):
         raise HTTPException(status_code=404, detail="Agent not found for this device")
     
     agent = active_agents[serial]
-    # Run task in background to avoid blocking API
-    asyncio.create_task(agent.run_task(task, sio_server=sio))
-    return {"success": True, "message": "Task started in background"}
+    
+    # Run task in background and stream events via Socket.IO
+    async def run_and_stream():
+        async for event in agent.stream_task(task):
+            await sio.emit("agent_event", {
+                "serial": serial,
+                "type": event["type"],
+                "data": event["data"]
+            })
+    
+    asyncio.create_task(run_and_stream())
+    return {"success": True, "message": "Task started and streaming"}
+
+@app.post("/api/agents/abort")
+async def abort_task(serial: str):
+    if serial in active_agents:
+        active_agents[serial].abort()
+        return {"success": True, "message": "Abort requested"}
+    raise HTTPException(status_code=404, detail="Agent not found")
 
 @app.post("/api/adb/restart")
 async def restart_adb():

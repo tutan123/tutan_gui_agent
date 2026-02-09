@@ -1,14 +1,16 @@
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncIterator
 from loguru import logger
+import time
 
 from tutan_agent.core.device_controller import DeviceController
 from tutan_agent.agents.planner import TutanPlanner
 
 class TutanAgent:
     """
-    Core Agent logic for TUTAN_AGENT.
-    Coordinates between LLM (Planner), Ref System, and Device Controller.
+    Industrial-grade Android GUI Agent.
+    Orchestrates between LLM, Ref System, and Hybrid Device Controller.
+    Supports full async streaming and state management.
     """
     def __init__(self, device_serial: str, model_config: Dict[str, str]):
         self.serial = device_serial
@@ -20,91 +22,97 @@ class TutanAgent:
         )
         self.history: List[Dict[str, str]] = []
         self._is_running = False
+        self._abort_requested = False
+        self.step_count = 0
+        self.max_steps = 30
 
     async def initialize(self):
+        """Setup environment and establish connection."""
         await self.controller.setup_forwarding()
+        logger.info(f"Agent for {self.serial} initialized.")
 
-    async def run_task(self, task: str, sio_server=None):
+    async def stream_task(self, task: str) -> AsyncIterator[Dict[str, Any]]:
         """
-        Run a complete task loop with LLM reasoning.
+        Execute task and yield events for real-time monitoring.
         """
         self._is_running = True
+        self._abort_requested = False
+        self.step_count = 0
         self.history = []
+        
         logger.info(f"Starting task: {task}")
         
-        step_count = 0
-        max_steps = 20
+        yield {"type": "status", "data": {"message": "Task started"}}
 
-        while self._is_running and step_count < max_steps:
-            step_count += 1
-            logger.info(f"--- Step {step_count} ---")
+        while self._is_running and self.step_count < self.max_steps:
+            if self._abort_requested:
+                yield {"type": "status", "data": {"message": "Task aborted by user"}}
+                break
 
-            # 1. Get UI context (Ref System)
-            ui_context = await self.controller.get_ui_context()
+            self.step_count += 1
+            yield {"type": "status", "data": {"message": f"Executing Step {self.step_count}..."}}
+
+            # 1. Perception: Get UI context and screenshot
+            ui_context, mode = await self.controller.get_ui_context()
+            screenshot = await self.controller.get_screenshot()
             
-            # 2. Ask Planner for next step
+            # 2. Planning: Call LLM
             plan = await self.planner.plan_next_step(task, ui_context, self.history)
             
             if "error" in plan:
-                logger.error(f"Planner error: {plan['error']}")
+                yield {"type": "error", "data": {"message": plan["error"]}}
                 break
 
             thinking = plan.get("thinking", "")
             action = plan.get("action", "")
             params = plan.get("params", {})
 
-            logger.info(f"Thinking: {thinking}")
-            logger.info(f"Action: {action}({params})")
-
-            # Notify frontend via Socket.IO if provided
-            if sio_server:
-                await sio_server.emit("agent_step", {
-                    "serial": self.serial,
-                    "step": step_count,
+            # 3. Emit Step Event
+            yield {
+                "type": "step",
+                "data": {
+                    "step": self.step_count,
                     "thinking": thinking,
                     "action": action,
-                    "params": params
-                })
+                    "params": params,
+                    "mode": mode
+                }
+            }
 
-            # 3. Execute action
+            # 4. Termination Check
             if action == "finish":
-                logger.info(f"Task finished: {params.get('message')}")
+                yield {"type": "done", "data": {"message": params.get("message", "Task completed")}}
                 break
+
+            # 5. Execution: Perform action via controller
+            success = await self.controller.execute_action(action, params)
             
-            success = await self._execute_action(action, params)
-            
-            # 4. Update history
-            self.history.append({"role": "assistant", "content": f"Thinking: {thinking}\nAction: {action}({params})"})
-            self.history.append({"role": "user", "content": f"Action result: {'Success' if success else 'Failed'}"})
+            # 6. Update History
+            self.history.append({
+                "role": "assistant", 
+                "content": f"Thinking: {thinking}\nAction: {action}({params})"
+            })
+            self.history.append({
+                "role": "user", 
+                "content": f"Action result: {'Success' if success else 'Failed'}"
+            })
 
             if not success:
-                logger.warning(f"Action {action} failed, retrying...")
+                logger.warning(f"Step {self.step_count} action failed.")
+                yield {"type": "warning", "data": {"message": f"Action {action} failed, retrying..."}}
 
-            await asyncio.sleep(1) # Delay between steps
+            await asyncio.sleep(1.5) # Wait for UI to settle
 
         self._is_running = False
-        return "Task completed"
+        if self.step_count >= self.max_steps:
+            yield {"type": "error", "data": {"message": "Maximum steps reached"}}
 
-    async def _execute_action(self, action: str, params: Dict[str, Any]) -> bool:
-        """Map LLM actions to DeviceController methods."""
-        try:
-            if action == "click":
-                return await self.controller.click_ref(params.get("ref_id"))
-            elif action == "type":
-                # To be implemented in DeviceController
-                # return await self.controller.type_ref(params.get("ref_id"), params.get("text"))
-                pass
-            elif action == "back":
-                # To be implemented in DeviceController
-                pass
-            elif action == "home":
-                # To be implemented in DeviceController
-                pass
-        except Exception as e:
-            logger.error(f"Action execution error: {e}")
-        return False
+    def abort(self):
+        """Request task abortion."""
+        self._abort_requested = True
 
     async def stop(self):
+        """Cleanup resources."""
         self._is_running = False
         await self.controller.close()
         await self.planner.close()

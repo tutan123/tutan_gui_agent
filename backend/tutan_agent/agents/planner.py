@@ -5,8 +5,8 @@ from loguru import logger
 
 class TutanPlanner:
     """
-    Handles LLM reasoning and task planning for TUTAN_AGENT.
-    Uses an OpenAI-compatible API.
+    Advanced LLM reasoning engine for TUTAN_AGENT.
+    Integrates OpenClaw's prompt strategies and Ref System.
     """
     def __init__(self, api_key: str, base_url: str, model: str):
         self.api_key = api_key
@@ -17,33 +17,47 @@ class TutanPlanner:
             timeout=60.0
         )
 
-    async def plan_next_step(self, task: str, ui_context: str, history: List[Dict[str, str]]) -> Dict[str, Any]:
-        """
-        Ask the LLM to decide the next action based on the task and UI context.
-        """
-        system_prompt = """
-        You are an Android GUI Agent. Your goal is to complete the user's task by interacting with the screen.
-        You are provided with a 'UI Context' which lists elements with IDs like [e1], [e2], etc.
+    def _get_system_prompt(self) -> str:
+        return """
+        You are an expert Android GUI Agent. Your goal is to complete the user's task by interacting with the device.
+        You are provided with a 'UI Context' which lists elements with semantic IDs like [e1], [e2], etc.
         
-        Available Actions:
+        ### Strategy:
+        1. **Semantic Understanding**: Use the text and labels in the UI Context to identify elements.
+        2. **Stable References**: Always prefer using [eX] IDs over coordinates.
+        3. **Step-by-Step Reasoning**: Explain your thinking before choosing an action.
+        4. **Error Recovery**: If an action fails, try an alternative path or check if you are on the right screen.
+        
+        ### Available Actions:
         - click(ref_id): Click on an element by its ID (e.g., click("e5"))
         - type(ref_id, text): Type text into an editable element (e.g., type("e2", "hello"))
-        - back(): Press the back button
-        - home(): Press the home button
-        - finish(message): Task is completed with a final message
+        - scroll(direction): Scroll the screen ("up", "down", "left", "right")
+        - back(): Press the system back button
+        - home(): Press the system home button
+        - wait(seconds): Wait for the UI to update
+        - finish(message): Task is completed with a summary message
         
-        Output Format (JSON only):
+        ### Output Format (Strict JSON):
         {
-            "thinking": "Your reasoning process",
-            "action": "click",
-            "params": {"ref_id": "e1"}
+            "thinking": "Analyze the current screen and plan the next move.",
+            "action": "click | type | scroll | back | home | wait | finish",
+            "params": {
+                "ref_id": "eX",
+                "text": "optional text",
+                "direction": "up|down",
+                "message": "final result"
+            }
         }
         """
 
+    async def plan_next_step(self, task: str, ui_context: str, history: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        Call LLM to decide the next step.
+        """
         prompt = f"User Task: {task}\n\nUI Context (Ref System):\n{ui_context}\n\nDecide the next step."
 
         messages = [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": self._get_system_prompt()},
             *history,
             {"role": "user", "content": prompt}
         ]
@@ -54,7 +68,8 @@ class TutanPlanner:
                 json={
                     "model": self.model,
                     "messages": messages,
-                    "response_format": {"type": "json_object"}
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.0 # Deterministic for GUI actions
                 }
             )
             
