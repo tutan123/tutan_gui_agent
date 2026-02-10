@@ -76,6 +76,20 @@ export class ADB {
   }
 
   /**
+   * Perform a swipe.
+   */
+  static async swipe(serial: string, x1: number, y1: number, x2: number, y2: number, duration: number = 300): Promise<void> {
+    await execAsync(`${this.adbPath} -s ${serial} shell input swipe ${x1} ${y1} ${x2} ${y2} ${duration}`);
+  }
+
+  /**
+   * Perform a long press (swipe at same point).
+   */
+  static async longPress(serial: string, x: number, y: number, duration: number = 1000): Promise<void> {
+    await this.swipe(serial, x, y, x, y, duration);
+  }
+
+  /**
    * Input text.
    */
   static async typeText(serial: string, text: string): Promise<void> {
@@ -92,6 +106,18 @@ export class ADB {
   }
 
   /**
+   * Get screen size.
+   */
+  static async getScreenSize(serial: string): Promise<{ width: number, height: number }> {
+    const { stdout } = await execAsync(`${this.adbPath} -s ${serial} shell wm size`);
+    const match = stdout.match(/Physical size: (\d+)x(\d+)/);
+    if (match) {
+      return { width: parseInt(match[1]), height: parseInt(match[2]) };
+    }
+    return { width: 1080, height: 1920 }; // Default
+  }
+
+  /**
    * Take screenshot and return as Buffer.
    */
   static async takeScreenshot(serial: string): Promise<Buffer> {
@@ -105,6 +131,18 @@ export class ADB {
     } catch (error) {
       console.error(`Failed to take screenshot for ${serial}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Setup ADB Keyboard for reliable text input (including Chinese).
+   */
+  static async setupADBKeyboard(serial: string): Promise<void> {
+    console.log(`[ADB] Setting up ADB Keyboard for ${serial}...`);
+    try {
+      await execAsync(`${this.adbPath} -s ${serial} shell ime set com.android.adbkeyboard/.AdbIME`);
+    } catch (e) {
+      console.warn(`[ADB] ADB Keyboard not found or failed to set. Make sure it is installed.`);
     }
   }
 }

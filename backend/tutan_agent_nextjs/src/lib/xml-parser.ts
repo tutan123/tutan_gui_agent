@@ -70,11 +70,12 @@ export class XMLParser {
   }
 
   private static parseRecursive(xml: string): AriaNode | null {
-    const tagMatch = xml.match(/<node\s+([^>]+?)(\s*\/>|>([\s\S]*?)<\/node>)/);
-    if (!tagMatch) return null;
+    // Find the first <node ...> tag
+    const startTagMatch = xml.match(/<node\s+([^>]+?)(\s*\/?>)/);
+    if (!startTagMatch) return null;
 
-    const attrString = tagMatch[1];
-    const content = tagMatch[3];
+    const attrString = startTagMatch[1];
+    const isSelfClosing = startTagMatch[2].includes('/');
     
     const attrs: Record<string, string> = {};
     const attrRegex = /([a-z-]+)="([^"]*)"/g;
@@ -94,17 +95,74 @@ export class XMLParser {
       children: []
     };
 
-    if (content) {
-      // Find direct children
-      let remainingContent = content;
-      while (remainingContent.trim()) {
-        const childMatch = remainingContent.match(/<node\s+[\s\S]*?(\/>|<\/node>)/);
-        if (childMatch) {
-          const childNode = this.parseRecursive(childMatch[0]);
-          if (childNode) node.children.push(childNode);
-          remainingContent = remainingContent.substring(childMatch.index! + childMatch[0].length);
+    if (!isSelfClosing) {
+      // Find the corresponding </node> tag by counting depth
+      let depth = 1;
+      let currentIndex = startTagMatch.index! + startTagMatch[0].length;
+      let contentStart = currentIndex;
+      let contentEnd = -1;
+
+      const tagRegex = /<(\/?)node/g;
+      tagRegex.lastIndex = currentIndex;
+      
+      let tagMatch;
+      while ((tagMatch = tagRegex.exec(xml)) !== null) {
+        if (tagMatch[1] === '/') {
+          depth--;
         } else {
+          // Check if this is a self-closing tag
+          const restOfTag = xml.substring(tagMatch.index).match(/<node\s+[^>]*?(\/?)>/);
+          if (restOfTag && !restOfTag[1]) {
+            depth++;
+          }
+        }
+
+        if (depth === 0) {
+          contentEnd = tagMatch.index;
           break;
+        }
+      }
+
+      if (contentEnd !== -1) {
+        const content = xml.substring(contentStart, contentEnd);
+        let remainingContent = content;
+        while (remainingContent.trim()) {
+          const childNode = this.parseRecursive(remainingContent);
+          if (childNode) {
+            node.children.push(childNode);
+            // We need to skip the entire child node in the remaining content
+            // This is tricky because parseRecursive doesn't return how much it consumed.
+            // Let's find the end of the child node we just parsed.
+            const childStartMatch = remainingContent.match(/<node\s+[^>]*?(\/?)>/);
+            if (childStartMatch) {
+              if (childStartMatch[1]) { // self-closing
+                remainingContent = remainingContent.substring(childStartMatch.index! + childStartMatch[0].length);
+              } else {
+                // find matching close tag for this child
+                let cDepth = 1;
+                let cIdx = childStartMatch.index! + childStartMatch[0].length;
+                const cTagRegex = /<(\/?)node/g;
+                cTagRegex.lastIndex = cIdx;
+                let cTagMatch;
+                while ((cTagMatch = cTagRegex.exec(remainingContent)) !== null) {
+                  if (cTagMatch[1] === '/') {
+                    cDepth--;
+                  } else {
+                    const cRest = remainingContent.substring(cTagMatch.index).match(/<node\s+[^>]*?(\/?)>/);
+                    if (cRest && !cRest[1]) cDepth++;
+                  }
+                  if (cDepth === 0) {
+                    remainingContent = remainingContent.substring(cTagMatch.index + cTagMatch[0].length);
+                    break;
+                  }
+                }
+              }
+            } else {
+              break;
+            }
+          } else {
+            break;
+          }
         }
       }
     }
