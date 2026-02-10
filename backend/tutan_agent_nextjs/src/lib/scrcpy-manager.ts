@@ -38,16 +38,17 @@ export class ScrcpyManager {
     const serverJar = 'scrcpy-server-v3.3.3'; 
     
     try {
+      const adb = await ADB.getAdbPath();
       // 2. Setup port forward
       const localPort = 27183 + this.activeStreams.size;
       const { exec } = require('child_process');
       const { promisify } = require('util');
       const execAsync = promisify(exec);
 
-      await execAsync(`adb -s ${serial} forward tcp:${localPort} localabstract:scrcpy`);
+      await execAsync(`${adb} -s ${serial} forward tcp:${localPort} localabstract:scrcpy`);
 
       // 3. Start scrcpy-server on device
-      const scrcpyProcess = spawn('adb', [
+      const scrcpyProcess = spawn(adb, [
         '-s', serial, 'shell', 
         'CLASSPATH=/data/local/tmp/scrcpy-server.jar', 
         'app_process', '/', 'com.genymobile.scrcpy.Server', 

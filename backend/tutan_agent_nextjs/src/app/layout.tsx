@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "TUTAN_AGENT",
-  description: "Industrial-grade Android GUI Agent",
+  title: "TUTAN_AGENT | Industrial Android GUI Agent",
+  description: "Next-generation Android automation powered by LLM and Ref System",
 };
 
 export default function RootLayout({
@@ -15,8 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className="h-full">
+      <body className={`${inter.className} h-full bg-slate-50 text-slate-900 antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }

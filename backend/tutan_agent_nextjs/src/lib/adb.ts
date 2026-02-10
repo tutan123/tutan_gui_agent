@@ -13,14 +13,62 @@ export interface ADBDeviceInfo {
 }
 
 export class ADB {
-  private static adbPath: string = 'adb';
+  private static adbPath: string = '';
+
+  public static async getAdbPath(): Promise<string> {
+    if (this.adbPath) return this.adbPath;
+
+    // 1. Check environment variable
+    if (process.env.ADB_PATH && await this.exists(process.env.ADB_PATH)) {
+      this.adbPath = process.env.ADB_PATH;
+      return this.adbPath;
+    }
+
+    // 2. Check system PATH
+    try {
+      await execAsync('adb version');
+      this.adbPath = 'adb';
+      return this.adbPath;
+    } catch (e) {
+      // Not in path
+    }
+
+    // 3. Check common Android SDK paths (Windows)
+    if (process.platform === 'win32') {
+      const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+      const commonPaths = [
+        path.join(localAppData, 'Android', 'Sdk', 'platform-tools', 'adb.exe'),
+        'C:\\Android\\sdk\\platform-tools\\adb.exe',
+      ];
+      for (const p of commonPaths) {
+        if (await this.exists(p)) {
+          this.adbPath = p;
+          return this.adbPath;
+        }
+      }
+    }
+
+    // 4. Default fallback
+    this.adbPath = 'adb';
+    return this.adbPath;
+  }
+
+  private static async exists(p: string): Promise<boolean> {
+    try {
+      await fs.access(p);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * List all connected devices.
    */
   static async listDevices(): Promise<ADBDeviceInfo[]> {
     try {
-      const { stdout } = await execAsync(`${this.adbPath} devices -l`);
+      const adb = await this.getAdbPath();
+      const { stdout } = await execAsync(`"${adb}" devices -l`);
       const lines = stdout.trim().split('\n').slice(1);
       
       return lines.map(line => {
@@ -34,8 +82,9 @@ export class ADB {
         
         return { serial, status, model };
       }).filter((d): d is ADBDeviceInfo => d !== null);
-    } catch (error) {
-      console.error('Failed to list devices:', error);
+    } catch (error: any) {
+      // Log the error but don't throw, so the API can return an empty list or error message
+      console.error('[ADB] Failed to list devices:', error.message);
       return [];
     }
   }
@@ -45,15 +94,16 @@ export class ADB {
    * This is the foundation for the Ref System.
    */
   static async dumpHierarchy(serial: string): Promise<string> {
+    const adb = await this.getAdbPath();
     const remotePath = '/data/local/tmp/uidump.xml';
     const localPath = path.join(os.tmpdir(), `tutan_dump_${serial}.xml`);
 
     try {
       // 1. Trigger dump on device
-      await execAsync(`${this.adbPath} -s ${serial} shell uiautomator dump ${remotePath}`);
+      await execAsync(`${adb} -s ${serial} shell uiautomator dump ${remotePath}`);
       
       // 2. Pull to local machine
-      await execAsync(`${this.adbPath} -s ${serial} pull ${remotePath} ${localPath}`);
+      await execAsync(`${adb} -s ${serial} pull ${remotePath} ${localPath}`);
       
       // 3. Read file content
       const xmlContent = await fs.readFile(localPath, 'utf-8');
@@ -72,14 +122,16 @@ export class ADB {
    * Perform a tap at coordinates.
    */
   static async tap(serial: string, x: number, y: number): Promise<void> {
-    await execAsync(`${this.adbPath} -s ${serial} shell input tap ${x} ${y}`);
+    const adb = await this.getAdbPath();
+    await execAsync(`${adb} -s ${serial} shell input tap ${x} ${y}`);
   }
 
   /**
    * Perform a swipe.
    */
   static async swipe(serial: string, x1: number, y1: number, x2: number, y2: number, duration: number = 300): Promise<void> {
-    await execAsync(`${this.adbPath} -s ${serial} shell input swipe ${x1} ${y1} ${x2} ${y2} ${duration}`);
+    const adb = await this.getAdbPath();
+    await execAsync(`${adb} -s ${serial} shell input swipe ${x1} ${y1} ${x2} ${y2} ${duration}`);
   }
 
   /**
@@ -93,23 +145,26 @@ export class ADB {
    * Input text.
    */
   static async typeText(serial: string, text: string): Promise<void> {
+    const adb = await this.getAdbPath();
     // Replace spaces with %s for ADB
     const escaped = text.replace(/\s/g, '%s');
-    await execAsync(`${this.adbPath} -s ${serial} shell input text "${escaped}"`);
+    await execAsync(`${adb} -s ${serial} shell input text "${escaped}"`);
   }
 
   /**
    * Send key event.
    */
   static async sendKey(serial: string, key: string): Promise<void> {
-    await execAsync(`${this.adbPath} -s ${serial} shell input keyevent ${key}`);
+    const adb = await this.getAdbPath();
+    await execAsync(`${adb} -s ${serial} shell input keyevent ${key}`);
   }
 
   /**
    * Get screen size.
    */
   static async getScreenSize(serial: string): Promise<{ width: number, height: number }> {
-    const { stdout } = await execAsync(`${this.adbPath} -s ${serial} shell wm size`);
+    const adb = await this.getAdbPath();
+    const { stdout } = await execAsync(`${adb} -s ${serial} shell wm size`);
     const match = stdout.match(/Physical size: (\d+)x(\d+)/);
     if (match) {
       return { width: parseInt(match[1]), height: parseInt(match[2]) };
@@ -121,9 +176,10 @@ export class ADB {
    * Take screenshot and return as Buffer.
    */
   static async takeScreenshot(serial: string): Promise<Buffer> {
+    const adb = await this.getAdbPath();
     try {
       // Use exec-out for faster transfer directly to buffer
-      const { stdout } = await execAsync(`${this.adbPath} -s ${serial} exec-out screencap -p`, {
+      const { stdout } = await execAsync(`${adb} -s ${serial} exec-out screencap -p`, {
         encoding: 'buffer',
         maxBuffer: 10 * 1024 * 1024 // 10MB
       });
@@ -138,9 +194,10 @@ export class ADB {
    * Setup ADB Keyboard for reliable text input (including Chinese).
    */
   static async setupADBKeyboard(serial: string): Promise<void> {
+    const adb = await this.getAdbPath();
     console.log(`[ADB] Setting up ADB Keyboard for ${serial}...`);
     try {
-      await execAsync(`${this.adbPath} -s ${serial} shell ime set com.android.adbkeyboard/.AdbIME`);
+      await execAsync(`${adb} -s ${serial} shell ime set com.android.adbkeyboard/.AdbIME`);
     } catch (e) {
       console.warn(`[ADB] ADB Keyboard not found or failed to set. Make sure it is installed.`);
     }
