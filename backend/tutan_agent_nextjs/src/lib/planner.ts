@@ -19,6 +19,12 @@ export class TutanPlanner {
     this.model = process.env.OPENAI_MODEL || 'kimi-k2.5';
   }
 
+  private updateConfigFromClient(clientConfig: any) {
+    if (clientConfig.apiKey) this.apiKey = clientConfig.apiKey;
+    if (clientConfig.baseUrl) this.baseUrl = clientConfig.baseUrl;
+    if (clientConfig.model) this.model = clientConfig.model;
+  }
+
   private getSystemPrompt(): string {
     return `
 You are an expert Android GUI Agent. Your goal is to complete the user's task by interacting with the device.
@@ -53,7 +59,14 @@ You are provided with a 'UI Context' which lists elements with semantic IDs like
     `.trim();
   }
 
-  async planNextStep(task: string, uiContext: string, history: any[]): Promise<PlanResult> {
+  async planNextStep(task: string, uiContext: string, history: any[], clientConfig?: any): Promise<PlanResult> {
+    if (clientConfig) {
+      this.updateConfigFromClient(clientConfig);
+    }
+
+    console.log(`[Planner] Planning next step for task: "${task}"`);
+    console.log(`[Planner] UI Context length: ${uiContext.length} chars`);
+
     const prompt = `User Task: ${task}\n\nUI Context (Ref System):\n${uiContext}\n\nDecide the next step.`;
 
     const messages = [
@@ -63,11 +76,12 @@ You are provided with a 'UI Context' which lists elements with semantic IDs like
     ];
 
     try {
+      console.log(`[Planner] Calling LLM (${this.model}) at ${this.baseUrl}...`);
       const response = await axios.post(`${this.baseUrl}/chat/completions`, {
         model: this.model,
         messages: messages,
         response_format: { type: 'json_object' },
-        temperature: 0
+        temperature: 1
       }, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
@@ -77,8 +91,10 @@ You are provided with a 'UI Context' which lists elements with semantic IDs like
 
       if (response.status === 200) {
         const content = response.data.choices[0].message.content;
+        console.log(`[Planner] LLM Response:`, content);
         return JSON.parse(content) as PlanResult;
       } else {
+        console.error(`[Planner] API Error: ${response.status}`, response.data);
         return { thinking: "", action: "error", params: {}, error: `API returned ${response.status}` };
       }
     } catch (error: any) {

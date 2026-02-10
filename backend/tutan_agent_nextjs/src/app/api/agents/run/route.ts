@@ -3,13 +3,13 @@ import { TutanAgent } from '@/lib/agent';
 
 export async function POST(req: Request) {
   try {
-    const { serial, task } = await req.json();
+    const { serial, task, config } = await req.json();
     
     if (!serial || !task) {
       return NextResponse.json({ success: false, error: "Missing serial or task" }, { status: 400 });
     }
 
-    const agent = new TutanAgent(serial);
+    const agent = new TutanAgent(serial, config);
     
     // Create a TransformStream for streaming events
     const encoder = new TextEncoder();

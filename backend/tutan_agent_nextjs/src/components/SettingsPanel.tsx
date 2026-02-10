@@ -12,25 +12,31 @@ import {
   Zap
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { normalizeTutanBaseUrl } from '@/lib/client-url';
 
 export default function SettingsPanel() {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-4o');
   const [adbPath, setAdbPath] = useState('adb');
+  const [llmBaseUrl, setLlmBaseUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     // Load from localStorage
     const savedKey = localStorage.getItem('TUTAN_API_KEY') || 'sk-vP6XdXWgDHA9IpF7XqsTT0Laov8xb7XqPiIMW42NSWBExA1a';
     const savedModel = localStorage.getItem('TUTAN_MODEL') || 'kimi-k2.5';
+    const savedLlmBaseUrl = localStorage.getItem('TUTAN_LLM_BASE_URL') || 'https://api.moonshot.cn/v1';
+    
     setApiKey(savedKey);
     setModel(savedModel);
+    setLlmBaseUrl(savedLlmBaseUrl);
   }, []);
 
   const handleSave = () => {
     setIsSaving(true);
     localStorage.setItem('TUTAN_API_KEY', apiKey);
     localStorage.setItem('TUTAN_MODEL', model);
+    localStorage.setItem('TUTAN_LLM_BASE_URL', llmBaseUrl.trim());
     
     setTimeout(() => {
       setIsSaving(false);
@@ -92,6 +98,24 @@ export default function SettingsPanel() {
                 <option value="gpt-4o">GPT-4o</option>
                 <option value="claude-3-opus">Claude 3 Opus</option>
               </select>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <Globe size={12} /> LLM Base URL
+                </label>
+                <input
+                  type="text"
+                  value={llmBaseUrl}
+                  onChange={(e) => setLlmBaseUrl(e.target.value)}
+                  placeholder="默认: https://api.moonshot.cn/v1"
+                  className="w-full bg-white border-2 border-slate-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 transition-all"
+                />
+                <p className="text-[10px] text-slate-400">
+                  用于请求 Kimi/OpenAI 的 API 地址。
+                </p>
+              </div>
             </div>
           </div>
         </section>

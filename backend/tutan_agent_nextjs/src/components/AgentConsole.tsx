@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Terminal, Play, Square, AlertCircle, CheckCircle2, Loader2, ChevronRight, BrainCircuit, Command, History } from 'lucide-react';
 import { clsx } from 'clsx';
+import { withBaseUrl } from '@/lib/client-url';
 
 interface Step {
   step: number;
@@ -37,10 +38,16 @@ export default function AgentConsole({ serial }: AgentConsoleProps) {
     setStatus('Starting...');
 
     try {
+      const config = {
+        apiKey: localStorage.getItem('TUTAN_API_KEY'),
+        baseUrl: localStorage.getItem('TUTAN_LLM_BASE_URL'),
+        model: localStorage.getItem('TUTAN_MODEL')
+      };
+
       const response = await fetch('/api/agents/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serial, task }),
+        body: JSON.stringify({ serial, task, config }),
       });
 
       if (!response.body) throw new Error('No response body');
@@ -74,6 +81,7 @@ export default function AgentConsole({ serial }: AgentConsoleProps) {
   };
 
   const handleEvent = (event: any) => {
+    console.log(`[AgentConsole] Received event:`, event);
     switch (event.type) {
       case 'status':
         setStatus(event.data.message);

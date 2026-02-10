@@ -119,19 +119,19 @@ graph TB
 ## 4. 实施计划 (Roadmap)
 
 ### 第一阶段：工程底座搭建 (Week 1-2)
-- [ ] 搭建 Python 后端框架 (FastAPI + Socket.IO)。
-- [ ] 集成 `scrcpy` 核心组件，实现 Web 端实时画面流。
-- [ ] 实现增强型 ADB 连接管理器，解决“连不上”的痛点。
+- [x] 搭建 Python 后端框架 (FastAPI + Socket.IO)。
+- [x] 集成 `scrcpy` 核心组件，实现 Web 端实时画面流。
+- [x] 实现增强型 ADB 连接管理器，解决“连不上”的痛点。
 
 ### 第二阶段：感知系统升级 (Week 3-4)
-- [ ] 开发 `TutanHelper` Android APP (无障碍服务)。
-- [ ] 实现 **Aria Tree** 解析器，将 Android 节点转换为 OpenClaw 风格的 JSON。
-- [ ] 实现 **Ref System**，完成 `e1`, `e2` 引用 ID 的生成与解析。
+- [x] 开发 `TutanHelper` Android APP (无障碍服务)。
+- [x] 实现 **Aria Tree** 解析器，将 Android 节点转换为 OpenClaw 风格的 JSON。
+- [x] 实现 **Ref System**，完成 `e1`, `e2` 引用 ID 的生成与解析。
 
 ### 第三阶段：Agent 逻辑集成 (Week 5-6)
-- [ ] 集成 LLM 接口，支持 GLM-4V / Claude 3.5 Vision。
-- [ ] 编写支持 Ref 系统的 System Prompt。
-- [ ] 实现任务规划与执行的闭环流。
+- [x] 集成 LLM 接口，支持 GLM-4V / Claude 3.5 Vision。
+- [x] 编写支持 Ref 系统的 System Prompt。
+- [x] 实现任务规划与执行的闭环流。
 
 ---
 

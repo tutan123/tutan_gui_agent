@@ -72,4 +72,73 @@ describe('TutanAgent', () => {
 
     expect(events.some(e => e.data?.message?.includes('aborted'))).toBe(true);
   });
+
+  it('should handle planner error', async () => {
+    const planner = (agent as any).planner;
+    planner.planNextStep.mockReset();
+    planner.planNextStep.mockResolvedValue({
+      error: "API Key invalid",
+      action: "error",
+      params: {}
+    });
+
+    const events = [];
+    for await (const event of agent.runTask('test task')) {
+      events.push(event);
+    }
+
+    expect(events.some(e => e.type === 'error' && e.data.message === 'API Key invalid')).toBe(true);
+  });
+
+  it('should handle action failure', async () => {
+    const planner = (agent as any).planner;
+    planner.planNextStep.mockReset();
+    planner.planNextStep
+      .mockResolvedValueOnce({
+        thinking: "Clicking...",
+        action: "click",
+        params: { ref_id: "non-existent" }
+      })
+      .mockResolvedValueOnce({
+        thinking: "Done.",
+        action: "finish",
+        params: { message: "Finished" }
+      });
+
+    const events = [];
+    for await (const event of agent.runTask('test task')) {
+      events.push(event);
+    }
+
+    expect(events.some(e => e.type === 'warning' && e.data.message.includes('failed'))).toBe(true);
+  });
+
+  it('should handle exceptions in the loop', async () => {
+    vi.mocked(ADB.dumpHierarchy).mockRejectedValueOnce(new Error('ADB connection lost'));
+
+    const events = [];
+    for await (const event of agent.runTask('test task')) {
+      events.push(event);
+    }
+
+    expect(events.some(e => e.type === 'error' && e.data.message === 'ADB connection lost')).toBe(true);
+  });
+
+  it('should handle max steps reached', async () => {
+    const planner = (agent as any).planner;
+    planner.planNextStep.mockReset();
+    planner.planNextStep.mockResolvedValue({
+      thinking: "Thinking...",
+      action: "wait",
+      params: { seconds: 0.01 }
+    });
+    (agent as any).maxSteps = 2;
+
+    const events = [];
+    for await (const event of agent.runTask('test task')) {
+      events.push(event);
+    }
+
+    expect(events.some(e => e.type === 'error' && e.data.message === 'Maximum steps reached')).toBe(true);
+  }, 10000);
 });

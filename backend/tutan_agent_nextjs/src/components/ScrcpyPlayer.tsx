@@ -15,8 +15,9 @@ export default function ScrcpyPlayer({ serial }: ScrcpyPlayerProps) {
   useEffect(() => {
     if (!serial) return;
 
-    // Connect to Socket.IO (assuming server runs on 3001 or same port)
-    const socket = io('http://localhost:3001');
+    // Connect to Socket.IO (assuming server runs on same port as Next.js)
+    // Removed hardcoded :3001 to avoid connection refused errors
+    const socket = io();
     socketRef.current = socket;
 
     socket.on('connect', () => {

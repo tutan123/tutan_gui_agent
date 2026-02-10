@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Smartphone, RefreshCw, Play, Circle, AlertCircle, CheckCircle2, Cpu } from 'lucide-react';
 import { clsx } from 'clsx';
+import { withBaseUrl } from '@/lib/client-url';
 
 interface DeviceManagerProps {
   onSelectDevice: (serial: string) => void;
@@ -27,7 +28,10 @@ export default function DeviceManager({ onSelectDevice }: DeviceManagerProps) {
       }
     } catch (err: any) {
       console.error("Failed to fetch devices", err);
-      setError(err.response?.data?.error || err.message || "连接后端失败");
+      const apiError = err.response?.data?.error;
+      const status = err.response?.status;
+      const msg = apiError || err.message || "连接后端失败";
+      setError(`${msg}${status ? ` (HTTP ${status})` : ''}`);
     } finally {
       setLoading(false);
     }

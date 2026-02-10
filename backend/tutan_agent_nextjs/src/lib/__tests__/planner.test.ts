@@ -39,4 +39,50 @@ describe('TutanPlanner', () => {
     expect(result.action).toBe('error');
     expect(result.error).toBe('Network Error');
   });
+
+  it('should update config from client', async () => {
+    const planner = new TutanPlanner();
+    const mockResponse = {
+      status: 200,
+      data: {
+        choices: [{
+          message: {
+            content: JSON.stringify({ thinking: "ok", action: "wait", params: {} })
+          }
+        }]
+      }
+    };
+    (axios.post as any).mockResolvedValue(mockResponse);
+
+    const clientConfig = {
+      apiKey: 'new-key',
+      baseUrl: 'https://new-api.com',
+      model: 'new-model'
+    };
+
+    await planner.planNextStep('task', 'context', [], clientConfig);
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://new-api.com/chat/completions',
+      expect.objectContaining({ model: 'new-model' }),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Authorization': 'Bearer new-key'
+        })
+      })
+    );
+  });
+
+  it('should handle non-200 API response', async () => {
+    const planner = new TutanPlanner();
+    const mockResponse = {
+      status: 401,
+      data: { error: "Unauthorized" }
+    };
+    (axios.post as any).mockResolvedValue(mockResponse);
+
+    const result = await planner.planNextStep('task', 'context', []);
+    expect(result.action).toBe('error');
+    expect(result.error).toContain('401');
+  });
 });
