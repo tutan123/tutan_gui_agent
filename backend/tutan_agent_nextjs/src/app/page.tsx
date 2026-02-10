@@ -19,6 +19,7 @@ import DeviceManager from '@/components/DeviceManager';
 import AgentConsole from '@/components/AgentConsole';
 import ScrcpyPlayer from '@/components/ScrcpyPlayer';
 import SettingsPanel from '@/components/SettingsPanel';
+import HistoryPanel from '@/components/HistoryPanel';
 
 export default function Home() {
   const [selectedSerial, setSelectedSerial] = useState<string | null>(null);
@@ -193,11 +194,8 @@ export default function Home() {
           )}
 
           {activeTab === 'history' && (
-            <div className="absolute inset-0 flex items-center justify-center text-slate-400">
-              <div className="text-center space-y-4">
-                <History size={64} className="mx-auto opacity-20" />
-                <p className="text-lg font-medium">执行历史模块正在开发中</p>
-              </div>
+            <div className="absolute inset-0 overflow-hidden p-8 custom-scrollbar">
+              <HistoryPanel />
             </div>
           )}
         </div>

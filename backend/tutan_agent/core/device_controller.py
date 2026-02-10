@@ -41,6 +41,10 @@ class DeviceController:
                 if response.status_code == 200:
                     tree_json = response.json()
                     context = self.ref_system.parse_aria_tree(tree_json)
+                    
+                    # Store current nodes for visual debugging
+                    self.current_nodes = self.ref_system.current_refs
+                    
                     return context, "accessibility"
             except Exception as e:
                 logger.warning(f"Accessibility context failed, falling back: {e}")
@@ -48,8 +52,19 @@ class DeviceController:
 
         # 2. Fallback to ADB + Vision (Placeholder)
         logger.info("Falling back to ADB/Vision for context")
-        # In a real implementation, we would take a screenshot and use a VLM
+        self.current_nodes = {}
         return "UI Context unavailable via Accessibility. Please use visual reasoning.", "vision"
+
+    def get_current_nodes(self) -> Dict[str, Any]:
+        """Return serialized current nodes for frontend overlay."""
+        return {
+            ref_id: {
+                "ref_id": node.ref_id,
+                "role": node.role,
+                "bounds": node.bounds,
+                "text": node.text
+            } for ref_id, node in getattr(self, "current_nodes", {}).items()
+        }
 
     async def execute_action(self, action: str, params: Dict[str, Any]) -> bool:
         """Execute action with intelligent fallback."""

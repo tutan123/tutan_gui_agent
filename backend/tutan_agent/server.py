@@ -1,4 +1,6 @@
 import os
+import asyncio
+from typing import Dict, List, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -6,6 +8,10 @@ import socketio
 
 from tutan_agent.adb.manager import ADBManager
 from tutan_agent.agents.base import TutanAgent
+from tutan_agent.core.session_store import SessionStore
+
+# Initialize FastAPI
+app = FastAPI(title="TUTAN_AGENT API", version="0.1.0")
 
 # Initialize FastAPI
 app = FastAPI(title="TUTAN_AGENT API", version="0.1.0")
@@ -25,6 +31,7 @@ socket_app = socketio.ASGIApp(sio, app)
 
 # Initialize Managers
 adb_manager = ADBManager()
+store = SessionStore()
 active_agents: Dict[str, TutanAgent] = {}
 
 # Default model config (can be overridden via API)
@@ -46,6 +53,14 @@ async def shutdown_event():
     adb_manager.stop()
 
 # --- API Routes ---
+
+@app.get("/api/sessions")
+async def list_sessions():
+    return {"success": True, "sessions": store.get_all_sessions()}
+
+@app.get("/api/sessions/{session_id}/steps")
+async def get_steps(session_id: str):
+    return {"success": True, "steps": store.get_session_steps(session_id)}
 
 @app.get("/api/health")
 async def health_check():
