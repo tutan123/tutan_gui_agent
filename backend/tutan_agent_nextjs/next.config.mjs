@@ -9,9 +9,9 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   
-  output: 'standalone',
-
+  // 核心修复：锁定 Output File Tracing 范围
   experimental: {
+    outputFileTracingRoot: __dirname,
     outputFileTracingExcludes: {
       '*': [
         '**/AppData/**',
@@ -20,17 +20,10 @@ const nextConfig = {
       ]
     }
   },
-  
+
   webpack: (config) => {
+    // 强制 Webpack 锁死在当前 G 盘目录下，严禁向上漂移
     config.context = __dirname;
-    
-    config.resolve.modules = [
-      path.resolve(__dirname, '.'), // 修正为根目录
-      path.resolve(__dirname, 'node_modules')
-    ];
-
-    config.externals = [...(config.externals || []), 'fsevents'];
-
     return config;
   },
 };
