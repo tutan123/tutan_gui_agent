@@ -13,22 +13,21 @@ vi.mock('@/lib/adb', () => ({
 }));
 
 vi.mock('@/lib/planner', () => {
-  const mockPlanNextStep = vi.fn()
-    .mockResolvedValueOnce({
-      thinking: "I will click.",
-      action: "click",
-      params: { ref_id: "e1" }
-    })
-    .mockResolvedValueOnce({
-      thinking: "Task done.",
-      action: "finish",
-      params: { message: "Success" }
-    });
-
   return {
-    TutanPlanner: vi.fn().mockImplementation(() => ({
-      planNextStep: mockPlanNextStep
-    }))
+    TutanPlanner: class {
+      planNextStep = vi.fn()
+        .mockResolvedValueOnce({
+          thinking: "I will click.",
+          action: "click",
+          params: { ref_id: "e1" }
+        })
+        .mockResolvedValueOnce({
+          thinking: "Task done.",
+          action: "finish",
+          params: { message: "Success" }
+        });
+      close = vi.fn();
+    }
   };
 });
 

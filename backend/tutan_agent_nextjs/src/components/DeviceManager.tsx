@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Smartphone, RefreshCw, Play, LogCircle } from 'lucide-react';
+import { Smartphone, RefreshCw, Play, Circle } from 'lucide-react';
 
-export default function DeviceManager() {
+interface DeviceManagerProps {
+  onSelectDevice: (serial: string) => void;
+}
+
+export default function DeviceManager({ onSelectDevice }: DeviceManagerProps) {
   const [devices, setDevices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -51,8 +55,11 @@ export default function DeviceManager() {
                 <p className="text-sm font-medium">{d.model}</p>
                 <p className="text-xs text-gray-400">{d.serial} · {d.status}</p>
               </div>
-              <button className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1">
-                <Play size={12} /> 启动 Agent
+              <button 
+                onClick={() => onSelectDevice(d.serial)}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+              >
+                <Play size={12} /> 选择
               </button>
             </div>
           ))
