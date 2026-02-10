@@ -14,9 +14,9 @@ export class TutanPlanner {
   private model: string;
 
   constructor() {
-    this.apiKey = process.env.OPENAI_API_KEY || 'EMPTY';
-    this.baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-    this.model = process.env.OPENAI_MODEL || 'gpt-4o';
+    this.apiKey = process.env.OPENAI_API_KEY || 'sk-vP6XdXWgDHA9IpF7XqsTT0Laov8xb7XqPiIMW42NSWBExA1a';
+    this.baseUrl = process.env.OPENAI_BASE_URL || 'https://api.moonshot.cn/v1';
+    this.model = process.env.OPENAI_MODEL || 'kimi-k2.5';
   }
 
   private getSystemPrompt(): string {

@@ -96,22 +96,19 @@ export class ADB {
   static async dumpHierarchy(serial: string): Promise<string> {
     const adb = await this.getAdbPath();
     const remotePath = '/data/local/tmp/uidump.xml';
-    const localPath = path.join(os.tmpdir(), `tutan_dump_${serial}.xml`);
-
+    
     try {
       // 1. Trigger dump on device
-      await execAsync(`${adb} -s ${serial} shell uiautomator dump ${remotePath}`);
+      await execAsync(`"${adb}" -s ${serial} shell uiautomator dump ${remotePath}`);
       
-      // 2. Pull to local machine
-      await execAsync(`${adb} -s ${serial} pull ${remotePath} ${localPath}`);
+      // 2. Read file content directly using cat to avoid pull/file system issues
+      const { stdout } = await execAsync(`"${adb}" -s ${serial} shell cat ${remotePath}`);
       
-      // 3. Read file content
-      const xmlContent = await fs.readFile(localPath, 'utf-8');
+      if (!stdout || !stdout.includes('<?xml')) {
+        throw new Error('Invalid XML hierarchy received');
+      }
       
-      // Cleanup (async, don't wait)
-      fs.unlink(localPath).catch(() => {});
-      
-      return xmlContent;
+      return stdout;
     } catch (error) {
       console.error(`Failed to dump hierarchy for ${serial}:`, error);
       throw error;
@@ -123,7 +120,7 @@ export class ADB {
    */
   static async tap(serial: string, x: number, y: number): Promise<void> {
     const adb = await this.getAdbPath();
-    await execAsync(`${adb} -s ${serial} shell input tap ${x} ${y}`);
+    await execAsync(`"${adb}" -s ${serial} shell input tap ${x} ${y}`);
   }
 
   /**
@@ -131,7 +128,7 @@ export class ADB {
    */
   static async swipe(serial: string, x1: number, y1: number, x2: number, y2: number, duration: number = 300): Promise<void> {
     const adb = await this.getAdbPath();
-    await execAsync(`${adb} -s ${serial} shell input swipe ${x1} ${y1} ${x2} ${y2} ${duration}`);
+    await execAsync(`"${adb}" -s ${serial} shell input swipe ${x1} ${y1} ${x2} ${y2} ${duration}`);
   }
 
   /**
@@ -146,17 +143,23 @@ export class ADB {
    */
   static async typeText(serial: string, text: string): Promise<void> {
     const adb = await this.getAdbPath();
-    // Replace spaces with %s for ADB
-    const escaped = text.replace(/\s/g, '%s');
-    await execAsync(`${adb} -s ${serial} shell input text "${escaped}"`);
+    // Use ADB Keyboard if possible, otherwise fallback to input text
+    try {
+      // Base64 encode for ADB Keyboard to support Chinese
+      const b64 = Buffer.from(text).toString('base64');
+      await execAsync(`"${adb}" -s ${serial} shell am broadcast -a ADB_INPUT_B64 --es msg "${b64}"`);
+    } catch (e) {
+      const escaped = text.replace(/\s/g, '%s');
+      await execAsync(`"${adb}" -s ${serial} shell input text "${escaped}"`);
+    }
   }
 
   /**
    * Send key event.
    */
-  static async sendKey(serial: string, key: string): Promise<void> {
+  static async sendKey(serial: string, key: string | number): Promise<void> {
     const adb = await this.getAdbPath();
-    await execAsync(`${adb} -s ${serial} shell input keyevent ${key}`);
+    await execAsync(`"${adb}" -s ${serial} shell input keyevent ${key}`);
   }
 
   /**

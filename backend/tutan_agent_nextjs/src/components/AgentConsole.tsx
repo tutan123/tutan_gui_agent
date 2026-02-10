@@ -199,7 +199,7 @@ export default function AgentConsole({ serial }: AgentConsoleProps) {
           </button>
         </div>
         <p className="mt-3 text-center text-[10px] text-slate-400 font-medium uppercase tracking-widest">
-          Powered by Tutan Ref System & GPT-4o
+          Powered by Tutan Ref System & Kimi k2.5
         </p>
       </div>
     </div>
