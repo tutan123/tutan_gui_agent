@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ADB } from '@/lib/adb';
-import { RefSystem } from '@/lib/ref-system';
-
-const refSystem = new RefSystem();
+import { TutanAgent } from '@/lib/agent';
 
 export async function POST(req: Request) {
   try {
@@ -12,23 +9,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Missing serial or task" }, { status: 400 });
     }
 
-    // 1. Get UI Context via ADB Dump
-    console.log(`[Agent] Dumping hierarchy for ${serial}...`);
-    const xml = await ADB.dumpHierarchy(serial);
+    const agent = new TutanAgent(serial);
     
-    // 2. Parse into Ref System
-    const uiContext = refSystem.parseXmlDump(xml);
-    console.log(`[Agent] UI Context generated (${uiContext.split('\n').length} elements)`);
+    // Create a TransformStream for streaming events
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of agent.runTask(task)) {
+            const data = `data: ${JSON.stringify(event)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          }
+          controller.close();
+        } catch (error: any) {
+          controller.error(error);
+        }
+      }
+    });
 
-    // 3. (Mock) LLM Decision
-    // In Phase 4, we will integrate a real LLM call here.
-    // For now, we'll return the context so the user can see it's working.
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: "Context perceived successfully",
-      uiContext: uiContext,
-      nextStepSuggestion: "In Phase 4, LLM will decide the next action based on this context."
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     });
   } catch (error: any) {
     console.error('[Agent Run Error]', error);

@@ -35,7 +35,7 @@ export class TutanAgent {
       while (this.isRunning && stepCount < this.maxSteps) {
         if (this.abortRequested) {
           yield { type: 'status', data: { message: 'Task aborted by user' } };
-          break;
+          return;
         }
 
         stepCount++;
